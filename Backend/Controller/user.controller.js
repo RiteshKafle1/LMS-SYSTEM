@@ -2,8 +2,7 @@ const userModel = require("../Models/user.model");
 const bcrypt = require("bcrypt");
 const validator = require("validator");
 const generateToken = require("../utils/generate.token");
-const { use } = require("bcrypt/promises");
-
+const cloudinary = require("../configuration/cloud.config");
 const registerUser = async (req, res) => {
   try {
     const { fullName, email, password } = req.body;
@@ -92,13 +91,12 @@ const loginUser = async (req, res) => {
 
 const getUserProfile = async (req, res) => {
   try {
-    const userId=req.user.userId;
+    const userId = req.user.userId;
     const user = await userModel.findById(userId).select("-password");
     if (!user)
       return res
         .status(400)
         .json({ error: true, message: "Profile Not Found" });
-      
 
     return res.status(200).json({ error: false, user });
   } catch (error) {
@@ -108,4 +106,54 @@ const getUserProfile = async (req, res) => {
       .json({ error: true, message: "Failed to load user" });
   }
 };
-module.exports = { registerUser, loginUser, getUserProfile };
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userImage = req.file;
+    const { name } = req.body;
+
+    const user = await userModel.findById(userId).select("-password");
+
+    if (!user) return res.json({ error: true, message: "Profile not found" });
+
+    if (user.updatedAt.getDate() === new Date().getDate())
+      return res.status(500).json({
+        error: true,
+        message: "OOPS :) update after 24hr.",
+      });
+
+    let image = "";
+    let imagePublicId = "";
+
+    if (userImage) {
+      // if the user uploads/update the profile,previous image should be destroyed.
+      if (user.imageUrl) await cloudinary.uploader.destroy(user.imagePublicId);
+
+      const cloud = await cloudinary.uploader.upload(userImage.path, {
+        resource_type: "image",
+        folder: "User-Image",
+      });
+      image = cloud.secure_url;
+      imagePublicId = cloud.public_id;
+    }
+    if (!validator.isAlphanumeric(name))
+      return res.status(400).json({
+        error: true,
+        message: "Username should contain letters and numbers.",
+      });
+
+    user.name = name || user.name;
+    user.imageUrl = image || user.image;
+    user.imagePublicId = imagePublicId || user.imagePublicId;
+    await user.save();
+    return res
+      .status(201)
+      .json({ error: false, message: "Profile Updated Successfully", user });
+  } catch (error) {
+    console.log("Error in updating profile", error);
+    return res
+      .status(500)
+      .json({ error: true, message: "Failed to update profile" });
+  }
+};
+module.exports = { registerUser, loginUser, getUserProfile, updateProfile };
