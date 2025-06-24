@@ -1,6 +1,7 @@
 const userModel = require("../Models/user.model");
 const bcrypt = require("bcrypt");
 const validator = require("validator");
+const generateToken = require("../utils/generate.token");
 
 const registerUser = async (req, res) => {
   try {
@@ -49,4 +50,29 @@ const registerUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser };
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password)
+      return res.json({ error: true, message: "NO empty fields allowed" });
+    const user = await userModel.findOne({ email });
+    if (!user)
+      return res.status(400).json({ error: true, message: "Incorrect email or password." });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res
+        .status(400)
+        .json({ error: true, message: "Invalid email or password." });
+
+    const token = generateToken(user._id);
+    return res
+      .status(200)
+      .json({ error: false, message: "Login Success.", token });
+  } catch (error) {
+    console.log("Error in logging user", error);
+    return res.status(500).json({ error: true, message: "Login Failed" });
+  }
+};
+module.exports = { registerUser, loginUser };
