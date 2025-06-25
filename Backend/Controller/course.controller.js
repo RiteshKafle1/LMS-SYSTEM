@@ -12,7 +12,6 @@ const createCourse = async (req, res) => {
       return res.json({ error: true, message: "No Instructor Found" });
 
     if (creator.role === "instructor") {
-
       if (!title || !category)
         return res.status(400).json({
           error: true,
@@ -49,17 +48,24 @@ const createCourse = async (req, res) => {
   }
 };
 
-const getCreatorCourse=async(req,res)=>{
+const getCreatorCourse = async (req, res) => {
   try {
-    const userId=req.user.userId;
+    const userId = req.user.userId;
 
-   const creator= await userModel.findById(userId);
-  //  if(!creator)
+    const creator = await userModel
+      .find({ _id: userId })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    if (!creator.length) return res.json({ error: true, message: "No creator Found" });
+
+    if (creator.role === "instructor")
+      return res.json({ error: false, creator });
+    else return res.json({ error: true, message: "No Course Found." });
   } catch (error) {
-    console.log('Error in fetching creator course',error);
-    return res.json({error:true,message:'Failed to get course'});
-    
+    console.log("Error in fetching creator course", error);
+    return res.json({ error: true, message: "Failed to get course" });
   }
-}
+};
 
-module.exports = { createCourse };
+module.exports = { createCourse,getCreatorCourse };
