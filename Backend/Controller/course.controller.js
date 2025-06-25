@@ -1,6 +1,7 @@
 const courseModel = require("../Models/course.model");
 const validator = require("validator");
 const userModel = require("../Models/user.model");
+const cloudinary = require("../configuration/cloud.config");
 
 const createCourse = async (req, res) => {
   try {
@@ -57,7 +58,8 @@ const getCreatorCourse = async (req, res) => {
       .select("-password")
       .sort({ createdAt: -1 });
 
-    if (!creator.length) return res.json({ error: true, message: "No creator Found" });
+    if (!creator.length)
+      return res.json({ error: true, message: "No creator Found" });
 
     if (creator.role === "instructor")
       return res.json({ error: false, creator });
@@ -68,4 +70,55 @@ const getCreatorCourse = async (req, res) => {
   }
 };
 
-module.exports = { createCourse,getCreatorCourse };
+const editCouse = async (req, res) => {
+  try {
+    const {
+      title,
+      subtitle,
+      level,
+      description,
+      price,
+      isPublished,
+      category,
+    } = req.body;
+    const creator = await userModel.findById(userId);
+    if (!creator)
+      return res.json({ error: true, message: "No Instructor Found" });
+    if (creator.role === "instructor") {
+      const thumbnailFile = req.file;
+      let thumbnail = "";
+      let thumbnailPublicId = "";
+
+      if (thumbnailFile) {
+        if (creator.thumbnail)
+          await cloudinary.uploader.destroy(thumbnailPublicId);
+
+        const cloud = await cloudinary.uploader.upload(thumbnailFile.path, {
+          resource_type: "image",
+          folder: "Thumbnail",
+        });
+        thumbnail = cloud.secure_url;
+        thumbnailPublicId = cloud.public_id;
+      }
+
+      const courseId = req.params.id;
+      const course = await courseModel.findById(courseId);
+      if (!course)
+        return res.json({ error: true, message: "Course Not Found" });
+      course.subtitle = subtitle || course.subtitle;
+      course.level = level || course.level;
+      course.description = description || course.description;
+      course.price = price || course.price;
+      course.isPublished = isPublished || course.isPublished;
+      course.title = title || course.title;
+      course.category = category || course.category;
+      await course.save();
+      return res.json({ error: false, message: "Course edit success", course });
+    }
+  } catch (error) {
+    console.log("Error in editing course", error);
+    return res.json({ error: true, message: "Failed to edit course" });
+  }
+};
+
+module.exports = { createCourse, getCreatorCourse, editCouse };
